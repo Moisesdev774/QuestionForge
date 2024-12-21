@@ -15,8 +15,8 @@ namespace QuestionForge.EntidadesDeNegocio
         [StringLength(50, ErrorMessage = "Maximo 50 caracteres")]
         public string Nombre { get; set; }
         [Display(Name = "Contraseña")]
-        public string Contraseña { get; set; }
+        public string Password { get; set; }
         [Display(Name = "Fecha de Registro")]
-        public DateTime FechaResgistro { get; set; }
+        public DateTime FechaRegistro { get; set; }
     }
 }
