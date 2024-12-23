@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.Data.SqlClient;
 using QuestionForge.EntidadesDeNegocio;
-
+using BCrypt.Net; 
 
 namespace QuestionForge.AccesoADatos
 {
@@ -20,16 +20,18 @@ namespace QuestionForge.AccesoADatos
         // *********************  Método Asíncrono para Registrar un Nuevo Usuario  ***************************
         public async Task RegistrarUsuarioAsync(string nombre, string password)
         {
+            string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
+
             await using (var connection = new SqlConnection(_connectionString))
             {
                 await using (var command = new SqlCommand("SP_RegistrarUsuario", connection))
                 {
                     command.CommandType = CommandType.StoredProcedure;
                     command.Parameters.AddWithValue("@Nombre", nombre);
-                    command.Parameters.AddWithValue("@Password", password);
+                    command.Parameters.AddWithValue("@Password", hashedPassword); 
 
                     await connection.OpenAsync();
-                    await command.ExecuteNonQueryAsync(); 
+                    await command.ExecuteNonQueryAsync();
                 }
             }
         }
@@ -43,18 +45,27 @@ namespace QuestionForge.AccesoADatos
                 {
                     command.CommandType = CommandType.StoredProcedure;
                     command.Parameters.AddWithValue("@Nombre", nombre);
-                    command.Parameters.AddWithValue("@Password", password);
 
-                    await connection.OpenAsync(); 
-                    await using (var reader = await command.ExecuteReaderAsync()) 
+                    await connection.OpenAsync();
+                    await using (var reader = await command.ExecuteReaderAsync())
                     {
-                        if (await reader.ReadAsync()) 
+                        if (await reader.ReadAsync())
                         {
-                            return new Usuario
+                            string storedPasswordHash = reader.GetString(2); 
+
+                           
+                            if (BCrypt.Net.BCrypt.Verify(password, storedPasswordHash))
                             {
-                                Id = reader.GetInt32(0),
-                                Nombre = reader.GetString(1)
-                            };
+                                return new Usuario
+                                {
+                                    Id = reader.GetInt32(0),
+                                    Nombre = reader.GetString(1)
+                                };
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("Credenciales incorrectas");
+                            }
                         }
                         else
                         {
@@ -65,9 +76,10 @@ namespace QuestionForge.AccesoADatos
             }
         }
 
+        // *********************  Método Asíncrono para Obtener Todos Los Usuarios *******************************
         public async Task<List<Usuario>> ObtenerTodosAsync()
         {
-            var usuarios = new List<Usuario>(); // Lista para almacenar los usuarios
+            var usuarios = new List<Usuario>(); 
             await using (var connection = new SqlConnection(_connectionString))
             {
                 await using (var command = new SqlCommand("SP_ObtenerTodosLosUsuarios", connection))
@@ -81,10 +93,10 @@ namespace QuestionForge.AccesoADatos
                         {
                             usuarios.Add(new Usuario
                             {
-                                Id = reader.GetInt32(0), 
-                                Nombre = reader.GetString(1), 
-                                Password = reader.GetString(2), 
-                                FechaRegistro = reader.GetDateTime(3) 
+                                Id = reader.GetInt32(0),
+                                Nombre = reader.GetString(1),
+                                Password = reader.GetString(2),
+                                FechaRegistro = reader.GetDateTime(3)
                             });
                         }
                     }
