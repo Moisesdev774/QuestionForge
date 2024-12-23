@@ -1,0 +1,50 @@
+﻿@model List<QuestionForge.EntidadesDeNegocio.Pregunta>
+@{
+    ViewData["Title"] = "Preguntas Abiertas";
+}
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Preguntas Abiertas</h1>
+        <a href="@Url.Action("Create", "Pregunta")" class="btn btn-primary">Crear Nueva Pregunta</a>
+    </div>
+
+    <table class="table table-striped">
+        <thead class="thead-dark">
+            <tr>
+                <th>Usuario</th>
+                <th>Título</th>
+                <th>Descripción</th>
+                <th>Fecha de Creación</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Any())
+            {
+                foreach (var pregunta in Model)
+                {
+                    <tr>
+                        <td>@pregunta.NombreUsuario</td>
+                        <td>@pregunta.Titulo</td>
+                        <td>@pregunta.Descripcion</td>
+                        <td>@pregunta.FechaCreacion.ToString("dd/MM/yyyy")</td>
+
+                        <td>
+                            <form asp-action="Cerrar" asp-controller="Home" method="post" class="d-inline">
+                                <input type="hidden" name="id" value="@pregunta.Id" />
+                                <button type="submit" class="btn btn-danger btn-sm">Cerrar</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="5" class="text-center">No hay preguntas abiertas.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

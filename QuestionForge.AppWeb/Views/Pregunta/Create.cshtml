@@ -1,0 +1,37 @@
+﻿@model QuestionForge.EntidadesDeNegocio.Pregunta
+@{
+    ViewData["Title"] = "Crear Pregunta";
+}
+
+<div class="container mt-5">
+    <h1>Crear Nueva Pregunta</h1>
+
+    <!-- Mostrar mensaje de error global si existe -->
+    <div class="text-danger">
+        @if (!string.IsNullOrEmpty(ViewData["ErrorMessage"]?.ToString()))
+        {
+            <p>@ViewData["ErrorMessage"]</p>
+        }
+    </div>
+
+    <form asp-action="Create" asp-controller="Pregunta" method="post">
+        <input type="hidden" name="IdUsuario" value="@Convert.ToInt32(User.FindFirst("IdUsuario")?.Value)" />
+
+        <div class="form-group">
+            <label for="Titulo">Título</label>
+            <input type="text" class="form-control" id="Titulo" name="Titulo" value="@(Model?.Titulo ?? "")" required />
+            <span asp-validation-for="Titulo" class="text-danger"></span>
+        </div>
+
+        <div class="form-group">
+            <label for="Descripcion">Descripción</label>
+            <textarea class="form-control" id="Descripcion" name="Descripcion" rows="4" required>@(Model?.Descripcion ?? "")</textarea>
+            <span asp-validation-for="Descripcion" class="text-danger"></span>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Crear</button>
+        <a href="@Url.Action("Index", "Pregunta")" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>
+
+
