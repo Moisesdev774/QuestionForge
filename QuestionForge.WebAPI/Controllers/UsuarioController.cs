@@ -30,11 +30,11 @@ namespace QuestionForge.WebAPI.Controllers
         }
 
         [HttpPost("Registrar")]
-        public IActionResult RegistrarUsuario([FromBody] Usuario usuario)
+        public async Task<IActionResult> RegistrarUsuario([FromBody] Usuario usuario)
         {
             try
             {
-                _usuarioBL.RegistrarUsuarioAsync(usuario.Nombre, usuario.Password);
+                await _usuarioBL.RegistrarUsuarioAsync(usuario.Nombre, usuario.Password);
                 return Ok("Usuario registrado con éxito.");
             }
             catch (Exception ex)

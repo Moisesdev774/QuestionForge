@@ -1,23 +1,42 @@
 ﻿using QuestionForge.LogicaDeNegocio;
+using QuestionForge.AccesoADatos;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Configuración de servicios
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Configura la inyecci�n de dependencias
+// Configuración de la cadena de conexión
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddSingleton(connectionString);
+
+// Registro de dependencias
 builder.Services.AddScoped<UsuarioBL>(provider =>
 {
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    return new UsuarioBL(connectionString);
+    var conn = provider.GetRequiredService<string>();
+    return new UsuarioBL(conn);
 });
+
+builder.Services.AddScoped<PreguntaDAL>(provider =>
+{
+    var conn = provider.GetRequiredService<string>();
+    return new PreguntaDAL(conn);
+});
+
+builder.Services.AddScoped<RespuestaDAL>(provider =>
+{
+    var conn = provider.GetRequiredService<string>();
+    return new RespuestaDAL(conn);
+});
+
+builder.Services.AddScoped<PreguntaBL>();
+builder.Services.AddScoped<RespuestaBL>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configuración del pipeline HTTP
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -25,9 +44,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
