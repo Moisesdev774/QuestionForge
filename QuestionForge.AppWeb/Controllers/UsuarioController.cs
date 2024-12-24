@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace QuestionForge.Web.Controllers
+namespace QuestionForge.AppWeb.Controllers
 {
     // Clase base para centralizar la autorización
     public class BaseController : Controller
@@ -111,15 +111,6 @@ namespace QuestionForge.Web.Controllers
             var jsonContent = new StringContent(JsonConvert.SerializeObject(usuario), Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync("https://localhost:7200/api/usuario/Registrar", jsonContent);
             return response.IsSuccessStatusCode;
-        }
-    }
-
-    // Ejemplo de otro controlador que hereda de BaseController
-    public class HomeController : BaseController
-    {
-        public IActionResult Index()
-        {
-            return View();
         }
     }
 }

@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace QuestionForge.Web.Controllers
+namespace QuestionForge.AppWeb.Controllers
 {
     public class PreguntaController : Controller
     {
