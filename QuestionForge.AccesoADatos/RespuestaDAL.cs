@@ -59,8 +59,9 @@ namespace QuestionForge.AccesoADatos
                                 Id = reader.GetInt32(0),
                                 IdPregunta = reader.GetInt32(1),
                                 IdUsuario = reader.GetInt32(2),
-                                Contenido = reader.GetString(3),
-                                FechaCreacion = reader.GetDateTime(4)
+                                Nombre = reader.IsDBNull(3) ? null : reader.GetString(3), 
+                                Contenido = reader.GetString(4),
+                                FechaCreacion = reader.GetDateTime(5)
                             });
                         }
                     }
@@ -68,5 +69,6 @@ namespace QuestionForge.AccesoADatos
             }
             return respuestas;
         }
+
     }
 }
