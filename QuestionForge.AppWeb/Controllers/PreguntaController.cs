@@ -1,9 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
-using QuestionForge.EntidadesDeNegocio;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using System.Linq;
+using System.Security.Claims;
+using QuestionForge.AppWeb.Models;
+using System.Net.Http.Headers;
 
 namespace QuestionForge.AppWeb.Controllers
 {
@@ -11,45 +14,85 @@ namespace QuestionForge.AppWeb.Controllers
     {
         private readonly HttpClient _httpClient;
 
-        public PreguntaController(HttpClient httpClient)
+        public PreguntaController(IHttpClientFactory httpClientFactory)
         {
-            _httpClient = httpClient;
+            _httpClient = httpClientFactory.CreateClient("PreguntaAPI");
         }
 
-        // Vista principal: lista las preguntas abiertas
+        // ********* Vista principal: lista las preguntas abiertas ********
         public async Task<IActionResult> Index()
         {
             var preguntas = await ObtenerPreguntasAbiertasAsync();
             return View(preguntas);
         }
 
-        // Vista para crear una nueva pregunta
+        // ********* Vista para crear una nueva pregunta ********
         public IActionResult Create()
         {
             return View(new Pregunta());
         }
 
-        // Acción para crear una pregunta (POST)
+        // ********* Acción para crear una pregunta  ********
         [HttpPost]
         public async Task<IActionResult> Create(Pregunta pregunta)
         {
-            if (!ModelState.IsValid || pregunta.IdUsuario == 0 || string.IsNullOrEmpty(pregunta.Titulo) || string.IsNullOrEmpty(pregunta.Descripcion))
+            if (!ModelState.IsValid)
             {
-                ViewData["ErrorMessage"] = "Por favor complete todos los campos requeridos.";
+                ViewData["ErrorMessage"] = "Modelo no válido.";
+
+                // ********* Imprimir errores de validación en la consola ********
+                foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
+                {
+                    Console.WriteLine($"Error: {error.ErrorMessage}");
+                }
+
                 return View(pregunta);
             }
 
-            var result = await CrearPreguntaAsync(pregunta);
-            if (result)
+            try
             {
+                var token = HttpContext.Session.GetString("JwtToken");
+                if (string.IsNullOrEmpty(token))
+                {
+                    ViewData["ErrorMessage"] = "Usuario no autenticado.";
+                    return View(pregunta);
+                }
+
+                // ********* Crear el modelo simplificado para enviar a la API ********
+                var crearPreguntaRequest = new CrearPreguntaRequest
+                {
+                    Titulo = pregunta.Titulo,
+                    Descripcion = pregunta.Descripcion
+                };
+
+                // ********* Serializar el modelo a JSON ********
+                var jsonContent = new StringContent(JsonConvert.SerializeObject(crearPreguntaRequest), Encoding.UTF8, "application/json");
+                var requestMessage = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7200/api/Pregunta/CrearPregunta")
+                {
+                    Content = jsonContent
+                };
+                requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                // ********* Enviar solicitud HTTP a la API ********
+                var response = await _httpClient.SendAsync(requestMessage);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorMessage = await response.Content.ReadAsStringAsync();
+                    ViewData["ErrorMessage"] = $"Error: {response.StatusCode}. Detalles: {errorMessage}";
+                    return View(pregunta);
+                }
+
                 return RedirectToAction("Index");
             }
-
-            ViewData["ErrorMessage"] = "Hubo un problema al crear la pregunta.";
-            return View(pregunta);
+            catch (Exception ex)
+            {
+                ViewData["ErrorMessage"] = $"Ocurrió un error: {ex.Message}";
+                return View(pregunta);
+            }
         }
 
-        // Acción para cerrar una pregunta
+        // ********* Acción para cerrar una pregunta ********
         [HttpPost]
         public async Task<IActionResult> Cerrar(int id)
         {
@@ -62,7 +105,7 @@ namespace QuestionForge.AppWeb.Controllers
             return RedirectToAction("Index");
         }
 
-        // Vista de detalles: muestra una pregunta y sus respuestas
+        // ********* Vista de detalles: muestra una pregunta y sus respuestas ********
         public async Task<IActionResult> Detalles(int id)
         {
             try
@@ -86,32 +129,7 @@ namespace QuestionForge.AppWeb.Controllers
             }
         }
 
-        // Acción para registrar una respuesta
-        [HttpPost]
-        public async Task<IActionResult> ResponderPregunta(Respuesta respuesta)
-        {
-            if (respuesta.IdPregunta <= 0 || respuesta.IdUsuario <= 0 || string.IsNullOrEmpty(respuesta.Contenido))
-            {
-                ModelState.AddModelError("", "Todos los campos son obligatorios.");
-                return RedirectToAction("Detalles", new { id = respuesta.IdPregunta });
-            }
-
-            var jsonContent = new StringContent(JsonConvert.SerializeObject(respuesta), Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync("https://localhost:7200/api/Respuesta/ResponderPregunta", jsonContent);
-
-            if (response.IsSuccessStatusCode)
-            {
-                TempData["SuccessMessage"] = "Respuesta registrada con éxito.";
-            }
-            else
-            {
-                TempData["ErrorMessage"] = "No se pudo registrar la respuesta.";
-            }
-
-            return RedirectToAction("Detalles", new { id = respuesta.IdPregunta });
-        }
-
-        // Métodos auxiliares para interactuar con la API
+        // ********* Métodos auxiliares para interactuar con la API ********
 
         private async Task<List<Pregunta>> ObtenerPreguntasAbiertasAsync()
         {
@@ -122,20 +140,6 @@ namespace QuestionForge.AppWeb.Controllers
                 return JsonConvert.DeserializeObject<List<Pregunta>>(json);
             }
             return new List<Pregunta>();
-        }
-
-        private async Task<bool> CrearPreguntaAsync(Pregunta pregunta)
-        {
-            var jsonContent = new StringContent(JsonConvert.SerializeObject(pregunta), Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync("https://localhost:7200/api/Pregunta/CrearPregunta", jsonContent);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var jsonResponse = await response.Content.ReadAsStringAsync();
-                var result = JsonConvert.DeserializeObject<dynamic>(jsonResponse);
-                return result?.IdPregunta != null;
-            }
-            return false;
         }
 
         private async Task<bool> CerrarPreguntaAsync(int idPregunta)
@@ -154,5 +158,12 @@ namespace QuestionForge.AppWeb.Controllers
             }
             return new List<Respuesta>();
         }
+    }
+
+    // ********* Modelo simplificado para la creación de preguntas ********
+    public class CrearPreguntaRequest
+    {
+        public string Titulo { get; set; }
+        public string Descripcion { get; set; }
     }
 }

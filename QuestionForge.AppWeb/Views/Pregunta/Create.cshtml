@@ -1,4 +1,4 @@
-﻿@model QuestionForge.EntidadesDeNegocio.Pregunta
+﻿@model QuestionForge.AppWeb.Models.Pregunta
 @{
     ViewData["Title"] = "Crear Pregunta";
 }
@@ -14,8 +14,15 @@
         }
     </div>
 
+    <!-- Mostrar errores de validación del modelo completo -->
+    <div class="text-danger">
+        @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+    </div>
+
+    <!-- Formulario de creación de pregunta -->
     <form asp-action="Create" asp-controller="Pregunta" method="post">
-        <input type="hidden" name="IdUsuario" value="@Convert.ToInt32(User.FindFirst("IdUsuario")?.Value)" />
+        <input type="hidden" name="FechaCreacion" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss")" />
+        <input type="hidden" name="NombreUsuario" value="@User.Identity.Name" />
 
         <div class="form-group">
             <label for="Titulo">Título</label>
@@ -29,9 +36,21 @@
             <span asp-validation-for="Descripcion" class="text-danger"></span>
         </div>
 
+        <div class="form-group">
+            <label for="Cerrada">Cerrada</label>
+            <input type="checkbox" id="Cerrada" name="Cerrada" @(Model?.Cerrada == true ? "checked" : "") />
+            <span asp-validation-for="Cerrada" class="text-danger"></span>
+        </div>
+
+        <!-- Botones de acción -->
         <button type="submit" class="btn btn-primary">Crear</button>
         <a href="@Url.Action("Index", "Pregunta")" class="btn btn-secondary">Cancelar</a>
     </form>
 </div>
 
-
+<!-- Validación del lado del cliente -->
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

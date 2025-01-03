@@ -1,0 +1,65 @@
+﻿@model List<QuestionForge.AppWeb.Models.Respuesta>
+@{
+    ViewData["Title"] = "Respuestas";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">
+        @TempData["ErrorMessage"]
+    </div>
+}
+
+<div class="mb-4">
+    <form method="get" action="@Url.Action("Index", "Respuesta")" class="form-inline">
+        <div class="form-group">
+            <label for="idPregunta" class="mr-2">Buscar respuestas por ID de pregunta:</label>
+            <input type="number" name="idPregunta" id="idPregunta" class="form-control mr-2" placeholder="ID de pregunta" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Buscar</button>
+    </form>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5>Respuestas para la Pregunta @ViewData["IdPregunta"] ?? Model.FirstOrDefault()?.IdPregunta</h5>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <ul class="list-group">
+                @foreach (var respuesta in Model)
+                {
+                    <li class="list-group-item">
+                        <p><strong>@respuesta.Contenido</strong></p>
+                        <small>Respondido por: Usuario @respuesta.IdUsuario</small>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p>No hay respuestas para esta pregunta.</p>
+        }
+    </div>
+</div>
+
+<hr>
+
+<h4>Agregar una Respuesta</h4>
+<form method="post" action="@Url.Action("Responder", "Respuesta")">
+    <div class="form-group">
+        <label for="contenido">Contenido de la respuesta:</label>
+        <textarea id="contenido" name="contenido" class="form-control" rows="3" required></textarea>
+    </div>
+    <input type="hidden" name="idPregunta" value="@ViewData["IdPregunta"] ?? Model.FirstOrDefault()?.IdPregunta" />
+    <button type="submit" class="btn btn-primary">Responder</button>
+</form>
+
+<hr>
+
+<p>
+    <a href="@Url.Action("Index", "Pregunta")" class="btn btn-secondary">Volver a la lista de preguntas</a>
+</p>

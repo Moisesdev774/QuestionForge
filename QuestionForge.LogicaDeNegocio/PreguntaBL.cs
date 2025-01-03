@@ -1,5 +1,4 @@
-﻿// Capa de Lógica de Negocio para Preguntas y Respuestas
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using QuestionForge.AccesoADatos;

@@ -1,4 +1,4 @@
-﻿@model List<QuestionForge.EntidadesDeNegocio.Pregunta>
+﻿@model List<QuestionForge.AppWeb.Models.Pregunta>
 @{
     ViewData["Title"] = "Preguntas Abiertas";
 }
@@ -29,12 +29,12 @@
                         <td>@pregunta.Titulo</td>
                         <td>@pregunta.Descripcion</td>
                         <td>@pregunta.FechaCreacion.ToString("dd/MM/yyyy")</td>
-
                         <td>
-                            <form asp-action="Cerrar" asp-controller="Home" method="post" class="d-inline">
+                            <form asp-action="Cerrar" asp-controller="Pregunta" method="post" class="d-inline">
                                 <input type="hidden" name="id" value="@pregunta.Id" />
                                 <button type="submit" class="btn btn-danger btn-sm">Cerrar</button>
                             </form>
+                            <a href="@Url.Action("Detalles", "Pregunta", new { id = pregunta.Id })" class="btn btn-info btn-sm">Ver Detalles</a>
                         </td>
                     </tr>
                 }
