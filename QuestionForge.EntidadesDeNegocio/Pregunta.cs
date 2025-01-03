@@ -12,14 +12,24 @@ namespace QuestionForge.EntidadesDeNegocio
     {
         [Key]
         public int Id { get; set; }
-        public int IdUsuario { get; set; }
-        public string NombreUsuario { get; set; }
-        [Required]
-        public string Titulo { get; set; }
-        public string Descripcion { get; set; }
-        public DateTime FechaCreacion { get; set; }
-        public bool Cerrada { get; set; }
-        public List<Respuesta> Respuestas { get; set; } = new List<Respuesta>();
 
+        // Este campo puede seguir existiendo para la base de datos, pero ya no será enviado desde el frontend.
+        public int IdUsuario { get; set; }
+
+        public string? NombreUsuario { get; set; }
+
+        [Required(ErrorMessage = "El Titulo Es requerido")]
+        public string Titulo { get; set; }
+        [Required(ErrorMessage = "La Descripcion Es requerido")]
+
+
+        public string Descripcion { get; set; }
+
+        public DateTime FechaCreacion { get; set; }
+
+        public bool Cerrada { get; set; }
+
+        public List<Respuesta> Respuestas { get; set; } = new List<Respuesta>();
     }
+
 }

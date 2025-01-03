@@ -13,7 +13,7 @@ namespace QuestionForge.EntidadesDeNegocio
         public int Id { get; set; }
         public int IdPregunta { get; set; }
         public int IdUsuario { get; set; }
-        public string NombreUsuario { get; set; }
+        public string? Nombre { get; set; }
         public string Contenido { get; set; }
         public DateTime FechaCreacion { get; set; }
     }
