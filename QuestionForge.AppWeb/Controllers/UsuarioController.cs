@@ -1,33 +1,30 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using QuestionForge.AppWeb.Models;
 using System.Security.Claims;
+using System.Text;
+using QuestionForge.AppWeb.Models;
 
 namespace QuestionForge.AppWeb.Controllers
 {
-    // ********* Clase base para centralizar la autorización ********
+    // Clase base para manejar autorización
     public class BaseController : Controller
     {
+        private readonly string[] _skipAuthActions = { "Login", "Registrar" };
+
         public override void OnActionExecuting(ActionExecutingContext context)
         {
-            // ********* Excluyo acciones específicas de autorización ********
-            var skipAuthActions = new[] { "Login", "Registrar" };
-            var currentAction = context.RouteData.Values["action"]?.ToString();
+            var actionName = context.RouteData.Values["action"]?.ToString();
 
-            if (!skipAuthActions.Contains(currentAction))
+            if (!_skipAuthActions.Contains(actionName))
             {
-                var usuarioLogeado = context.HttpContext.Session.GetString("UsuarioLogeado");
-                if (string.IsNullOrEmpty(usuarioLogeado))
+                if (string.IsNullOrEmpty(context.HttpContext.Session.GetString("JwtToken")))
                 {
                     context.Result = new RedirectToActionResult("Login", "Usuario", null);
                 }
             }
+
             base.OnActionExecuting(context);
         }
     }
@@ -41,100 +38,90 @@ namespace QuestionForge.AppWeb.Controllers
             _httpClient = httpClient;
         }
 
-        // ********* Vista para iniciar sesión ********
-        public IActionResult Login()
-        {
-            return View();
-        }
+        // Vista para login
+        public IActionResult Login() => View();
 
-        // ********* Acción para procesar el login ********
+        // Procesar login
         [HttpPost]
         public async Task<IActionResult> Login(Usuario usuario)
         {
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid) return View(usuario);
+
+            var token = await AuthenticateUserAsync(usuario);
+            if (string.IsNullOrEmpty(token))
             {
-                var token = await VerificarCredencialesAsync(usuario);
-                if (!string.IsNullOrEmpty(token))
-                {
-                    // ********* Decodifico el JWT y obtengo las claims ********
-                    var claims = DecodeJwtClaims(token);
-
-                    // Guardamos el token y las claims en la sesión
-                    var identity = new ClaimsIdentity(claims, "login");
-                    var userPrincipal = new ClaimsPrincipal(identity);
-                    HttpContext.User = userPrincipal; // Asigno las claims al HttpContext.User
-
-                    HttpContext.Session.SetString("JwtToken", token); // Guardo el token en la sesión
-
-                    return RedirectToAction("Index", "Home");
-                }
                 ModelState.AddModelError("", "Credenciales incorrectas");
+                return View(usuario);
             }
-            return View(usuario);
+
+            SetSessionAndClaims(token);
+            return RedirectToAction("Index", "Home");
         }
 
-        // ********* Acción para cerrar sesión ********
+        // Cerrar sesión
         public IActionResult Logout()
         {
-            // Limpio la sesión y las claims
             HttpContext.Session.Clear();
-            HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity()); // Limpio el principal
+            HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
             return RedirectToAction("Login", "Usuario");
         }
 
-        // ********* Vista para el registro de usuarios ********
-        public IActionResult Registrar()
-        {
-            return View();
-        }
+        // Vista para registrar
+        public IActionResult Registrar() => View();
 
-        // ********* Acción para registrar un nuevo usuario ********
+        // Registrar usuario
         [HttpPost]
         public async Task<IActionResult> Registrar(Usuario usuario)
         {
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid) return View(usuario);
+
+            if (await RegisterUserAsync(usuario))
             {
-                var registroResponse = await RegistrarUsuarioAsync(usuario);
-                if (registroResponse)
-                {
-                    // Redirijo al login después de un registro exitoso
-                    return RedirectToAction("Login");
-                }
-                ModelState.AddModelError("", "Hubo un error al registrar el usuario.");
+                return RedirectToAction("Login");
             }
+
+            ModelState.AddModelError("", "Error al registrar el usuario");
             return View(usuario);
         }
 
-        // ********* Verifico las credenciales del usuario contra la API ********
-        private async Task<string> VerificarCredencialesAsync(Usuario usuario)
+        // Método para autenticar usuario en la API
+        private async Task<string> AuthenticateUserAsync(Usuario usuario)
         {
-            var jsonContent = new StringContent(JsonConvert.SerializeObject(usuario), Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync("https://localhost:7200/api/usuario/Login", jsonContent);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadAsStringAsync();
-                return result; // El JWT token es devuelto directamente
-            }
-            return null;
+            var response = await PostToApiAsync("usuario/Login", usuario);
+            return response.IsSuccessStatusCode
+                ? await response.Content.ReadAsStringAsync()
+                : null;
         }
 
-        // ********* Decodifico el JWT y extraigo las claims ********
+        // Método para registrar usuario en la API
+        private async Task<bool> RegisterUserAsync(Usuario usuario)
+        {
+            var response = await PostToApiAsync("usuario/Registrar", usuario);
+            return response.IsSuccessStatusCode;
+        }
+
+        // Método para hacer POST a la API
+        private async Task<HttpResponseMessage> PostToApiAsync(string endpoint, object data)
+        {
+            var jsonContent = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json");
+            return await _httpClient.PostAsync($"https://localhost:7200/api/{endpoint}", jsonContent);
+        }
+
+        // Establecer sesión y claims
+        private void SetSessionAndClaims(string token)
+        {
+            var claims = DecodeJwtClaims(token);
+            HttpContext.Session.SetString("JwtToken", token);
+
+            var identity = new ClaimsIdentity(claims, "login");
+            HttpContext.User = new ClaimsPrincipal(identity);
+        }
+
+        // Decodificar JWT para obtener claims
         private IEnumerable<Claim> DecodeJwtClaims(string token)
         {
-            var jwtHandler = new JwtSecurityTokenHandler();
-            var jwtToken = jwtHandler.ReadJwtToken(token);
-
-            var claims = jwtToken.Claims.ToList();
-            return claims;
-        }
-
-        // ********* Registro un nuevo usuario en la API ********
-        private async Task<bool> RegistrarUsuarioAsync(Usuario usuario)
-        {
-            var jsonContent = new StringContent(JsonConvert.SerializeObject(usuario), Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync("https://localhost:7200/api/usuario/Registrar", jsonContent);
-            return response.IsSuccessStatusCode;
+            var jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            return jwtToken.Claims;
         }
     }
 }

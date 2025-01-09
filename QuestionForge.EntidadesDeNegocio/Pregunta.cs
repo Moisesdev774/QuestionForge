@@ -29,7 +29,7 @@ namespace QuestionForge.EntidadesDeNegocio
 
         public bool Cerrada { get; set; }
 
-        public List<Respuesta> Respuestas { get; set; } = new List<Respuesta>();
+        public List<Respuesta> Respuestas { get; set; }
     }
 
 }

@@ -4,7 +4,6 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Linq;
-using System.Security.Claims;
 using QuestionForge.AppWeb.Models;
 using System.Net.Http.Headers;
 
@@ -19,33 +18,40 @@ namespace QuestionForge.AppWeb.Controllers
             _httpClient = httpClientFactory.CreateClient("PreguntaAPI");
         }
 
-        // ********* Vista principal: lista las preguntas abiertas ********
         public async Task<IActionResult> Index()
         {
-            var preguntas = await ObtenerPreguntasAbiertasAsync();
-            return View(preguntas);
+            if (string.IsNullOrEmpty(HttpContext.Session.GetString("JwtToken")))
+            {
+                return RedirectToAction("Login", "Usuario");
+            }
+
+            try
+            {
+                var preguntas = await ObtenerPreguntasAbiertasAsync();
+                return View(preguntas);
+            }
+            catch (Exception ex)
+            {
+                ViewData["ErrorMessage"] = $"Error al cargar preguntas: {ex.Message}";
+                return View(new List<Pregunta>());
+            }
         }
 
-        // ********* Vista para crear una nueva pregunta ********
         public IActionResult Create()
         {
             return View(new Pregunta());
         }
 
-        // ********* Acción para crear una pregunta  ********
         [HttpPost]
         public async Task<IActionResult> Create(Pregunta pregunta)
         {
             if (!ModelState.IsValid)
             {
-                ViewData["ErrorMessage"] = "Modelo no válido.";
-
-                // ********* Imprimir errores de validación en la consola ********
+                ViewData["ErrorMessage"] = "Modelo inválido.";
                 foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
                 {
                     Console.WriteLine($"Error: {error.ErrorMessage}");
                 }
-
                 return View(pregunta);
             }
 
@@ -54,18 +60,16 @@ namespace QuestionForge.AppWeb.Controllers
                 var token = HttpContext.Session.GetString("JwtToken");
                 if (string.IsNullOrEmpty(token))
                 {
-                    ViewData["ErrorMessage"] = "Usuario no autenticado.";
+                    ViewData["ErrorMessage"] = "Token no encontrado.";
                     return View(pregunta);
                 }
 
-                // ********* Crear el modelo simplificado para enviar a la API ********
                 var crearPreguntaRequest = new CrearPreguntaRequest
                 {
                     Titulo = pregunta.Titulo,
                     Descripcion = pregunta.Descripcion
                 };
 
-                // ********* Serializar el modelo a JSON ********
                 var jsonContent = new StringContent(JsonConvert.SerializeObject(crearPreguntaRequest), Encoding.UTF8, "application/json");
                 var requestMessage = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7200/api/Pregunta/CrearPregunta")
                 {
@@ -73,13 +77,12 @@ namespace QuestionForge.AppWeb.Controllers
                 };
                 requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                // ********* Enviar solicitud HTTP a la API ********
                 var response = await _httpClient.SendAsync(requestMessage);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorMessage = await response.Content.ReadAsStringAsync();
-                    ViewData["ErrorMessage"] = $"Error: {response.StatusCode}. Detalles: {errorMessage}";
+                    ViewData["ErrorMessage"] = $"Error al crear la pregunta: {response.StatusCode}. Detalles: {errorMessage}";
                     return View(pregunta);
                 }
 
@@ -92,20 +95,26 @@ namespace QuestionForge.AppWeb.Controllers
             }
         }
 
-        // ********* Acción para cerrar una pregunta ********
         [HttpPost]
         public async Task<IActionResult> Cerrar(int id)
         {
-            var cerrada = await CerrarPreguntaAsync(id);
-            if (cerrada)
+            try
             {
+                var cerrado = await CerrarPreguntaAsync(id);
+                if (cerrado)
+                {
+                    return RedirectToAction("Index");
+                }
+                ModelState.AddModelError("", "No se pudo cerrar la pregunta.");
                 return RedirectToAction("Index");
             }
-            ModelState.AddModelError("", "No se pudo cerrar la pregunta.");
-            return RedirectToAction("Index");
+            catch (Exception ex)
+            {
+                ViewData["ErrorMessage"] = $"Error: {ex.Message}";
+                return RedirectToAction("Index");
+            }
         }
 
-        // ********* Vista de detalles: muestra una pregunta y sus respuestas ********
         public async Task<IActionResult> Detalles(int id)
         {
             try
@@ -115,7 +124,7 @@ namespace QuestionForge.AppWeb.Controllers
 
                 if (pregunta == null)
                 {
-                    return NotFound(); // Error 404 si la pregunta no existe
+                    return NotFound();
                 }
 
                 var respuestas = await ObtenerRespuestasPorPreguntaAsync(id);
@@ -123,13 +132,12 @@ namespace QuestionForge.AppWeb.Controllers
 
                 return View(pregunta);
             }
-            catch
+            catch (Exception ex)
             {
-                return BadRequest("Ocurrió un error al cargar los detalles de la pregunta.");
+                ViewData["ErrorMessage"] = $"Error al cargar detalles: {ex.Message}";
+                return View();
             }
         }
-
-        // ********* Métodos auxiliares para interactuar con la API ********
 
         private async Task<List<Pregunta>> ObtenerPreguntasAbiertasAsync()
         {
@@ -160,7 +168,6 @@ namespace QuestionForge.AppWeb.Controllers
         }
     }
 
-    // ********* Modelo simplificado para la creación de preguntas ********
     public class CrearPreguntaRequest
     {
         public string Titulo { get; set; }

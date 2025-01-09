@@ -13,84 +13,90 @@ namespace QuestionForge.AppWeb.Controllers
     public class HomeController : Controller
     {
         private readonly HttpClient _httpClient;
-        private readonly ILogger<HomeController> _logger;
 
-        public HomeController(HttpClient httpClient, ILogger<HomeController> logger)
+        public HomeController(HttpClient httpClient)
         {
             _httpClient = httpClient;
-            _logger = logger;
         }
 
-        // ********* Vista principal: lista las preguntas abiertas ********
+        // ********* Mostrar la lista principal de preguntas ********
         public async Task<IActionResult> Index()
         {
+            var token = HttpContext.Session.GetString("JwtToken");
+
+            // Verificar si el usuario tiene sesión activa
+            if (string.IsNullOrEmpty(token))
+            {
+                return RedirectToAction("Login", "Usuario");
+            }
+
             try
             {
+                // Obtener las preguntas abiertas de la API
                 var preguntas = await ObtenerPreguntasAbiertasAsync();
 
-                // ********* Cargar respuestas para cada pregunta ********
                 foreach (var pregunta in preguntas)
                 {
+                    // Obtener las respuestas para cada pregunta
                     pregunta.Respuestas = await ObtenerRespuestasPorPreguntaAsync(pregunta.Id);
-                    _logger.LogInformation($"Respuestas cargadas para la pregunta {pregunta.Id}: {pregunta.Respuestas.Count} respuestas.");
-
-                    // ********* Imprimir cada respuesta en el log ********
-                    foreach (var respuesta in pregunta.Respuestas)
-                    {
-                        _logger.LogInformation($"Respuesta para la pregunta {pregunta.Id}: {respuesta.Contenido}");
-                    }
                 }
 
                 return View(preguntas);
             }
-            catch (Exception ex)
+            catch
             {
-                ViewData["ErrorMessage"] = "Ocurrió un error al cargar las preguntas abiertas.";
-                return View(new List<Pregunta>()); // Devuelve una lista vacía
+                ViewData["ErrorMessage"] = "No se pudieron cargar las preguntas.";
+                return View(new List<Pregunta>());
             }
         }
 
-        // ********* Vista para crear una nueva pregunta ********
-        public IActionResult Create() => View(new Pregunta());
+        // ********* Página para crear una pregunta ********
+        public IActionResult Create()
+        {
+            return View(new Pregunta());
+        }
 
-        // ********* Acción para crear una pregunta (POST) ********
+        // ********* Acción para guardar una nueva pregunta ********
         [HttpPost]
         public async Task<IActionResult> Create(Pregunta pregunta)
         {
             if (!ModelState.IsValid)
+            {
                 return View(pregunta);
+            }
+
+            var token = HttpContext.Session.GetString("JwtToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                return RedirectToAction("Login", "Usuario");
+            }
 
             try
             {
-                var token = HttpContext.Session.GetString("JwtToken");
-                if (string.IsNullOrEmpty(token))
-                    return View(pregunta);
+                // Crear el objeto para enviar a la API
+                var jsonContent = new StringContent(JsonConvert.SerializeObject(pregunta), Encoding.UTF8, "application/json");
 
-                var crearPreguntaRequest = new
-                {
-                    Titulo = pregunta.Titulo,
-                    Descripcion = pregunta.Descripcion
-                };
-
-                // ********* Serializar el contenido de la pregunta a JSON ********
-                var jsonContent = new StringContent(JsonConvert.SerializeObject(crearPreguntaRequest), Encoding.UTF8, "application/json");
-                var requestMessage = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7200/api/Pregunta/CrearPregunta")
+                var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7200/api/Pregunta/CrearPregunta")
                 {
                     Content = jsonContent
                 };
-                requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-                var response = await _httpClient.SendAsync(requestMessage);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                // Enviar la solicitud
+                var response = await _httpClient.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)
+                {
                     return RedirectToAction("Index");
+                }
 
                 ViewData["ErrorMessage"] = "Error al crear la pregunta.";
                 return View(pregunta);
             }
             catch
             {
-                ViewData["ErrorMessage"] = "Ocurrió un error.";
+                ViewData["ErrorMessage"] = "Hubo un error inesperado.";
                 return View(pregunta);
             }
         }
@@ -99,15 +105,35 @@ namespace QuestionForge.AppWeb.Controllers
         [HttpPost]
         public async Task<IActionResult> Cerrar(int id)
         {
-            var cerrada = await CerrarPreguntaAsync(id);
-            if (cerrada)
-                return RedirectToAction("Index");
+            var token = HttpContext.Session.GetString("JwtToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                return RedirectToAction("Login", "Usuario");
+            }
 
-            return RedirectToAction("Index");
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Post, $"https://localhost:7200/api/Pregunta/CerrarPregunta/{id}");
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                var response = await _httpClient.SendAsync(request);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return RedirectToAction("Index");
+                }
+
+                ViewData["ErrorMessage"] = "No se pudo cerrar la pregunta.";
+                return RedirectToAction("Index");
+            }
+            catch
+            {
+                ViewData["ErrorMessage"] = "Error al cerrar la pregunta.";
+                return RedirectToAction("Index");
+            }
         }
 
-
-        // ********* Obtener las preguntas abiertas desde la API *****************************
+        // ********* Método para obtener preguntas abiertas ********
         private async Task<List<Pregunta>> ObtenerPreguntasAbiertasAsync()
         {
             var response = await _httpClient.GetAsync("https://localhost:7200/api/Pregunta/ListarPreguntasAbiertas");
@@ -116,57 +142,30 @@ namespace QuestionForge.AppWeb.Controllers
                 var json = await response.Content.ReadAsStringAsync();
                 return JsonConvert.DeserializeObject<List<Pregunta>>(json);
             }
+
             return new List<Pregunta>();
         }
 
-        // ********* Obtener una pregunta por su ID ********************************************
-        private async Task<Pregunta> ObtenerPreguntaPorIdAsync(int idPregunta)
-        {
-            var response = await _httpClient.GetAsync($"https://localhost:7200/api/Pregunta/{idPregunta}");
-            if (response.IsSuccessStatusCode)
-            {
-                var json = await response.Content.ReadAsStringAsync();
-                return JsonConvert.DeserializeObject<Pregunta>(json);
-            }
-            return null;
-        }
-
-        // ********* Cerrar una pregunta por su ID ************************************************
-        private async Task<bool> CerrarPreguntaAsync(int idPregunta)
-        {
-            var response = await _httpClient.PostAsync($"https://localhost:7200/api/Pregunta/CerrarPregunta/{idPregunta}", null);
-            return response.IsSuccessStatusCode;
-        }
-
-        // ********* Obtener respuestas para una pregunta por su ID ********************************
+        // ********* Método para obtener respuestas por ID de pregunta ********
         private async Task<List<Respuesta>> ObtenerRespuestasPorPreguntaAsync(int idPregunta)
         {
             var token = HttpContext.Session.GetString("JwtToken");
-
             if (string.IsNullOrEmpty(token))
             {
-                _logger.LogWarning($"Token no encontrado. No se puede autenticar la solicitud para obtener respuestas de la pregunta {idPregunta}.");
-                return new List<Respuesta>();  // No se puede realizar la solicitud si no se tiene un token
+                return new List<Respuesta>();
             }
 
-            // ********* Crear la solicitud con el encabezado de autorización **********************
-            var requestMessage = new HttpRequestMessage(HttpMethod.Get, $"https://localhost:7200/api/Respuesta/ObtenerRespuestasPorPregunta/{idPregunta}");
-            requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var request = new HttpRequestMessage(HttpMethod.Get, $"https://localhost:7200/api/Respuesta/ObtenerRespuestasPorPregunta/{idPregunta}");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            var response = await _httpClient.SendAsync(requestMessage);
-
-            _logger.LogInformation($"Llamada a la API para obtener respuestas de la pregunta {idPregunta}: {response.StatusCode}");
+            var response = await _httpClient.SendAsync(request);
 
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
-                _logger.LogInformation($"Respuestas obtenidas para la pregunta {idPregunta}: {json}");
-
-                // ********* Deserializar y devolver las respuestas ********
                 return JsonConvert.DeserializeObject<List<Respuesta>>(json);
             }
 
-            _logger.LogWarning($"Error al obtener respuestas para la pregunta {idPregunta}: {response.StatusCode}");
             return new List<Respuesta>();
         }
     }

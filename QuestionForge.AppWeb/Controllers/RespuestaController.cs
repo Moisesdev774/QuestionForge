@@ -17,12 +17,16 @@ namespace QuestionForge.AppWeb.Controllers
             _httpClient = httpClientFactory.CreateClient("PreguntaAPI");
         }
 
-        // ********* Acción para mostrar la lista de respuestas de todas las preguntas ********
         public async Task<IActionResult> Index()
         {
+            if (string.IsNullOrEmpty(HttpContext.Session.GetString("JwtToken")))
+            {
+                return RedirectToAction("Login", "Usuario");
+            }
+
             try
             {
-                var respuestas = await ObtenerRespuestasPorPreguntaAsync(); // Obtengo las respuestas
+                var respuestas = await ObtenerRespuestasPorPreguntaAsync();
                 return View(respuestas);
             }
             catch (Exception ex)
@@ -32,7 +36,6 @@ namespace QuestionForge.AppWeb.Controllers
             }
         }
 
-        // ********* Acción para ver las respuestas específicas de una pregunta ********
         public async Task<IActionResult> Detalles(int idPregunta)
         {
             try
@@ -54,7 +57,6 @@ namespace QuestionForge.AppWeb.Controllers
             }
         }
 
-        // ********* Acción para responder a una pregunta ********
         [HttpPost]
         public async Task<IActionResult> Responder(int idPregunta, string contenido)
         {
@@ -106,18 +108,25 @@ namespace QuestionForge.AppWeb.Controllers
             return RedirectToAction("Index", "Home", new { idPregunta });
         }
 
-        // ********* Método auxiliar para obtener respuestas de una pregunta específica ********
         private async Task<List<Respuesta>> ObtenerRespuestasPorPreguntaAsync(int idPregunta = 0)
         {
-            var endpoint = idPregunta > 0
-                ? $"https://localhost:7200/api/Respuesta/ObtenerRespuestasPorPregunta/{idPregunta}"
-                : "https://localhost:7200/api/Respuesta/ObtenerRespuestasPorPregunta";
-
-            var response = await _httpClient.GetAsync(endpoint);
-            if (response.IsSuccessStatusCode)
+            try
             {
-                var json = await response.Content.ReadAsStringAsync();
-                return JsonConvert.DeserializeObject<List<Respuesta>>(json);
+                var endpoint = idPregunta > 0
+                    ? $"https://localhost:7200/api/Respuesta/ObtenerRespuestasPorPregunta/{idPregunta}"
+                    : "https://localhost:7200/api/Respuesta/ObtenerRespuestasPorPregunta";
+
+                var response = await _httpClient.GetAsync(endpoint);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<List<Respuesta>>(json);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al obtener respuestas: {ex.Message}");
             }
 
             return new List<Respuesta>();

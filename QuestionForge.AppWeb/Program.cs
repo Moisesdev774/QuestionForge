@@ -1,56 +1,58 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Agrega controladores y vistas
+// Agregar servicios al contenedor
 builder.Services.AddControllersWithViews();
 
-// Configura HttpClient para consumir la API de Pregunta
+// Configurar HttpClient para la API
 builder.Services.AddHttpClient("PreguntaAPI", c =>
 {
     c.BaseAddress = new Uri(builder.Configuration["UrlsAPI:PreguntaAPI"]);
 });
 
-// Configuración de sesión dependiendo del entorno
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddSession(options =>
+// Configurar autenticación con cookies
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
     {
-        options.IdleTimeout = TimeSpan.FromMinutes(30); // Tiempo de expiración
-        options.Cookie.HttpOnly = true; // Solo accesible por el servidor
-        options.Cookie.IsEssential = true; // Cookie esencial
-        options.Cookie.SecurePolicy = CookieSecurePolicy.None; // No requiere HTTPS en desarrollo
-        options.Cookie.SameSite = SameSiteMode.Lax; // Más permisivo en desarrollo
+        options.LoginPath = new PathString("/Usuario/Login");
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
     });
-}
-else
-{
-    builder.Services.AddSession(options =>
-    {
-        options.IdleTimeout = TimeSpan.FromMinutes(30); // Tiempo de expiración
-        options.Cookie.HttpOnly = true;
-        options.Cookie.IsEssential = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Requiere HTTPS en producción
-        options.Cookie.SameSite = SameSiteMode.Strict; // Más seguro en producción
-    });
-}
 
-builder.Services.AddDistributedMemoryCache(); // Configura la memoria para sesiones
+// Configurar manejo de sesiones
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.None
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = builder.Environment.IsDevelopment()
+        ? SameSiteMode.Lax
+        : SameSiteMode.Strict;
+});
 
 var app = builder.Build();
 
-// Configuración del middleware
+// Configurar el pipeline de middleware
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error"); // Manejador de errores
-    app.UseHsts(); // Forzar HTTPS
+    app.UseExceptionHandler("/Home/Error");
+    app.UseHsts();
 }
 
-app.UseHttpsRedirection(); // Redirige a HTTPS
-app.UseStaticFiles(); // Habilita archivos estáticos
-app.UseRouting(); // Configura las rutas
-app.UseAuthorization(); // Autoriza el acceso
-app.UseSession(); // Manejo de sesiones
+app.UseHttpsRedirection();
+app.UseStaticFiles();
 
-// Ruta predeterminada
+app.UseRouting();
+
+app.UseAuthentication(); // Habilitar autenticación
+app.UseAuthorization();
+app.UseSession(); // Habilitar sesiones
+
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Usuario}/{action=Login}/{id?}");
